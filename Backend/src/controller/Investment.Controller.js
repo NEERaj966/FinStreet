@@ -24,6 +24,11 @@ const normalizeInvestmentType = (type) => {
     return normalized;
 };
 
+const normalizeInvestmentAccount = (value) => {
+    const normalized = String(value || "").trim();
+    return normalized;
+};
+
 // Simulate an investment and store its return
 const createInvestment = asyncHandler(async (req, res) => {
     const userId = req.user?._id;
@@ -31,8 +36,9 @@ const createInvestment = asyncHandler(async (req, res) => {
         throw new ApiError(401, "Unauthorized request");
     }
 
-    const { investmentType, amount, ratePercent } = req.body;
+    const { investmentType, investmentAccount, amount, ratePercent } = req.body;
     const normalizedType = normalizeInvestmentType(investmentType);
+    const normalizedAccount = normalizeInvestmentAccount(investmentAccount);
 
     if (!normalizedType || !INVESTMENT_TYPES.has(normalizedType)) {
         throw new ApiError(400, "Investment type must be FD, Stocks, or Gold");
@@ -54,6 +60,7 @@ const createInvestment = asyncHandler(async (req, res) => {
     const investment = await Investment.create({
         userId,
         investmentType: normalizedType,
+        investmentAccount: normalizedAccount,
         amount: numericAmount,
         returnValue
     });

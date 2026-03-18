@@ -4,6 +4,7 @@ import axios from 'axios'
 const Investments = () => {
   const [investments, setInvestments] = useState([])
   const [investmentType, setInvestmentType] = useState('FD')
+  const [investmentAccount, setInvestmentAccount] = useState('')
   const [amount, setAmount] = useState('')
   const [ratePercent, setRatePercent] = useState('')
   const [loading, setLoading] = useState(false)
@@ -56,6 +57,7 @@ const Investments = () => {
         `${import.meta.env.VITE_BASE_URL}/api/v1/investments`,
         {
           investmentType,
+          investmentAccount: investmentAccount.trim() || undefined,
           amount: Number(amount),
           ratePercent: Number(ratePercent),
         },
@@ -66,6 +68,7 @@ const Investments = () => {
         setInvestments((prev) => [data.investment, ...prev])
         setStatus(`Return simulated: ${data.returnPercent}%`)
       }
+      setInvestmentAccount('')
       setAmount('')
       setRatePercent('')
     } catch (err) {
@@ -107,6 +110,16 @@ const Investments = () => {
                   <option value="Stocks">Stocks</option>
                   <option value="Gold">Gold</option>
                 </select>
+              </label>
+              <label className="flex flex-col gap-2 text-xs font-medium uppercase tracking-wide text-slate-400">
+                Investment Account / Platform
+                <input
+                  type="text"
+                  value={investmentAccount}
+                  onChange={(e) => setInvestmentAccount(e.target.value)}
+                  className="rounded-xl border border-slate-700/70 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none"
+                  placeholder="Groww, Zerodha, SBI FD"
+                />
               </label>
               <label className="flex flex-col gap-2 text-xs font-medium uppercase tracking-wide text-slate-400">
                 Amount
@@ -171,6 +184,11 @@ const Investments = () => {
                       <p className="text-xs text-slate-400">
                         Amount: ₹{item.amount}
                       </p>
+                      {item.investmentAccount ? (
+                        <p className="mt-1 text-xs text-slate-500">
+                          Account: {item.investmentAccount}
+                        </p>
+                      ) : null}
                     </div>
                     <span className="text-sm font-semibold text-emerald-200">
                       ₹{item.returnValue}

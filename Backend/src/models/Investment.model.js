@@ -6,6 +6,10 @@ const investmentSchema = new mongoose.Schema({
     ref: "User"
   },
   investmentType: String,
+  investmentAccount: {
+    type: String,
+    default: ""
+  },
   amount: Number,
   returnValue: Number
 });
