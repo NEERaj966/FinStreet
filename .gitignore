@@ -1,0 +1,73 @@
+# Dependencies
+node_modules/
+Backend/node_modules/
+Frontend/node_modules/
+
+# Build output
+dist/
+build/
+coverage/
+.cache/
+.eslintcache
+.parcel-cache/
+.turbo/
+Frontend/dist/
+Frontend/dist-ssr/
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+Backend/.env
+Frontend/.env
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Package manager caches
+.npm/
+.pnpm-store/
+.yarn/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.history/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Runtime / temp / backup files
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# Deployment / tooling
+.vercel/
+.netlify/
+
+# Generated import and export artifacts
+Backend/public/imports/*
+!Backend/public/imports/.gitkeep
+Backend/public/imports/*.json
+Backend/public/imports/*.csv
+Backend/public/imports/*.pdf
+
+# Optional local data files
+*.sqlite
+*.db
