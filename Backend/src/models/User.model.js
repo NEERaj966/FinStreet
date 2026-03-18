@@ -40,6 +40,21 @@ const userSchema = new mongoose.Schema({
         required: true,
         unique: true,
     },
+    googleId: {
+        type: String,
+        unique: true,
+        sparse: true,
+        default: null
+    },
+    authProvider: {
+        type: String,
+        enum: ["local", "google"],
+        default: "local"
+    },
+    avatar: {
+        type: String,
+        default: ""
+    },
     password: {
         type: String,
         required: true,

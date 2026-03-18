@@ -2,6 +2,7 @@ import React, { useContext, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { UserDataContext } from '../context/UserContext'
+import GoogleAuthButton from '../componants/GoogleAuthButton'
 
 const SignUP = () => {
   const [fullname, setFullname] = useState('')
@@ -11,8 +12,17 @@ const SignUP = () => {
   const [accepted, setAccepted] = useState(false)
   const [formError, setFormError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const navigate = useNavigate()
   const { setUser } = useContext(UserDataContext)
+
+  const handleAuthSuccess = (data) => {
+    setUser(data?.user)
+    if (data?.token) {
+      localStorage.setItem('token', data.token)
+    }
+    navigate('/')
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -57,12 +67,7 @@ const SignUP = () => {
       )
 
       if (res.status === 201 || res.status === 200) {
-        const data = res.data?.data
-        setUser(data?.user)
-        if (data?.token) {
-          localStorage.setItem('token', data.token)
-        }
-        navigate('/')
+        handleAuthSuccess(res.data?.data)
       }
     } catch (error) {
       setFormError(
@@ -80,6 +85,30 @@ const SignUP = () => {
     setConfirmPassword('')
     setAccepted(false)
   };
+
+  const handleGoogleSignUp = async (credential) => {
+    setFormError('')
+
+    try {
+      setIsGoogleLoading(true)
+      const res = await axios.post(
+        `${import.meta.env.VITE_BASE_URL}/api/v1/users/google`,
+        { credential }
+      )
+
+      if (res.status === 200 || res.status === 201) {
+        handleAuthSuccess(res.data?.data)
+      }
+    } catch (error) {
+      setFormError(
+        error?.response?.data?.message ||
+          error?.message ||
+          'Unable to continue with Google right now.'
+      )
+    } finally {
+      setIsGoogleLoading(false)
+    }
+  }
 
   return (
     <main className="min-h-[calc(100vh-80px)] bg-slate-950 text-slate-100">
@@ -198,11 +227,31 @@ const SignUP = () => {
             <button
               type="submit"
               className="w-full rounded-full bg-gradient-to-r from-emerald-300 via-emerald-400 to-sky-400 px-4 py-3 text-sm font-semibold text-slate-950 shadow-[0_16px_30px_rgba(34,197,94,0.25)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
-              disabled={isLoading}
+              disabled={isLoading || isGoogleLoading}
             >
               {isLoading ? 'Creating account...' : 'Create account'}
             </button>
           </form>
+
+          <div className="mt-5 flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-slate-500">
+            <span className="h-px flex-1 bg-slate-800" />
+            <span>or</span>
+            <span className="h-px flex-1 bg-slate-800" />
+          </div>
+
+          <div className="mt-5 flex items-center justify-center">
+            <GoogleAuthButton
+              text="signup_with"
+              disabled={isLoading || isGoogleLoading}
+              onCredential={handleGoogleSignUp}
+              onError={(message) => setFormError(message)}
+            />
+            {isGoogleLoading ? (
+              <p className="mt-2 text-xs text-slate-400">
+                Connecting your Google account...
+              </p>
+            ) : null}
+          </div>
 
           <div className="mt-6 flex items-center justify-between text-xs text-slate-400">
             <span>Already have an account?</span>

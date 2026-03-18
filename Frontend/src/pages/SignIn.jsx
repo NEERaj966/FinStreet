@@ -2,14 +2,24 @@ import React, { useContext, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { UserDataContext } from '../context/UserContext'
+import GoogleAuthButton from '../componants/GoogleAuthButton'
 
 const SignIn = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [formError, setFormError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const navigate = useNavigate()
   const { setUser } = useContext(UserDataContext)
+
+  const handleAuthSuccess = (data) => {
+    setUser(data?.user)
+    if (data?.token) {
+      localStorage.setItem('token', data.token)
+    }
+    navigate('/dashboard')
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -31,12 +41,7 @@ const SignIn = () => {
       )
 
       if (res.status === 200) {
-        const data = res.data?.data
-        setUser(data?.user)
-        if (data?.token) {
-          localStorage.setItem('token', data.token)
-        }
-        navigate('/dashboard')
+        handleAuthSuccess(res.data?.data)
       }
     } catch (error) {
       setFormError(
@@ -46,6 +51,30 @@ const SignIn = () => {
       )
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleGoogleSignIn = async (credential) => {
+    setFormError('')
+
+    try {
+      setIsGoogleLoading(true)
+      const res = await axios.post(
+        `${import.meta.env.VITE_BASE_URL}/api/v1/users/google`,
+        { credential }
+      )
+
+      if (res.status === 200 || res.status === 201) {
+        handleAuthSuccess(res.data?.data)
+      }
+    } catch (error) {
+      setFormError(
+        error?.response?.data?.message ||
+          error?.message ||
+          'Unable to sign in with Google right now.'
+      )
+    } finally {
+      setIsGoogleLoading(false)
     }
   }
 
@@ -114,11 +143,31 @@ const SignIn = () => {
             <button
               type="submit"
               className="w-full rounded-full bg-gradient-to-r from-emerald-300 via-emerald-400 to-sky-400 px-4 py-3 text-sm font-semibold text-slate-950 shadow-[0_16px_30px_rgba(34,197,94,0.25)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
-              disabled={isLoading}
+              disabled={isLoading || isGoogleLoading}
             >
               {isLoading ? 'Signing in...' : 'Sign in'}
             </button>
           </form>
+
+          <div className="mt-5 flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-slate-500">
+            <span className="h-px flex-1 bg-slate-800" />
+            <span>or</span>
+            <span className="h-px flex-1 bg-slate-800" />
+          </div>
+
+          <div className="mt-5 flex items-center justify-center">
+            <GoogleAuthButton
+              text="signin_with"
+              disabled={isLoading || isGoogleLoading}
+              onCredential={handleGoogleSignIn}
+              onError={(message) => setFormError(message)}
+            />
+            {isGoogleLoading ? (
+              <p className="mt-2 text-xs text-slate-400">
+                Signing in with Google...
+              </p>
+            ) : null}
+          </div>
 
           <div className="mt-6 flex items-center justify-between text-xs text-slate-400">
             <span>New to FinStreet?</span>

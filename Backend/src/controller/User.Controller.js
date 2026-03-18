@@ -1,178 +1,188 @@
+import { randomUUID } from 'crypto'
+import { OAuth2Client } from 'google-auth-library'
 import { User } from '../models/User.model.js'
 import { asyncHandler } from '../utills/AsyncHandler.js'
 import { ApiError } from '../utills/ApiError.js'
 import { ApiResponse } from '../utills/ApiResponse.js'
 import { blackListTokenModel } from '../models/Blacklist.model.js'
 
+const googleClient = new OAuth2Client()
 
+const getCookieOptions = () => ({
+    httpOnly: true,
+    secure: true
+})
 
+const sendAuthResponse = async (res, user, statusCode, message) => {
+    const loggedInUser = await User.findById(user._id).select("-password")
+    const token = user.generateAuthToken()
 
-
+    return res
+        .status(statusCode)
+        .cookie("authtoken", token, getCookieOptions())
+        .json(
+            new ApiResponse(
+                statusCode,
+                {
+                    user: loggedInUser,
+                    token
+                },
+                message
+            )
+        )
+}
 
 const registerUser = asyncHandler(async (req, res) => {
-
-    // get user details from frontend
-    // validation - not empty
-    // check if user already exists: username, email
-    // create user object - create entry in db
-    // remove password and refresh token field from response
-    // check for user creation
-    // return res
-
-
-
     const { fullname, email, password } = req.body
 
-
-    // Basic payload validation before hitting the database
     if ([fullname, email, password].some((field) => !field || field.trim() === "")) {
         throw new ApiError(400, "All fields are required")
     }
 
-
-
-
-    const existedUser = await User.findOne({ email })
-
-
-
-    //      res.status(200).json({
-    //      message:'OK'
-    //  })
-
+    const normalizedEmail = email.trim().toLowerCase()
+    const existedUser = await User.findOne({ email: normalizedEmail })
 
     if (existedUser) {
         throw new ApiError(409, "User with email or username already exists")
     }
 
     const user = await User.create({
-        fullname,
-        email,
+        fullname: fullname.trim(),
+        email: normalizedEmail,
         password,
+        authProvider: "local"
     })
 
-    const createdUser = await User.findById(user._id).select("-password")
-
-    if (!createdUser) {
+    if (!user) {
         throw new ApiError(500, "Something went wrong while registering the user")
     }
 
-    const token = user.generateAuthToken();
-
-    return res.status(201).json(
-        new ApiResponse(
-           201,
-            {
-                user: createdUser,
-                token
-            },
-            "User registered Successfully")
-    )
+    return sendAuthResponse(res, user, 201, "User registered Successfully")
 })
 
-const loginUser = asyncHandler(async (req, res) =>{
-    // req body -> data
-    // username or email
-    //find the user
-    //password check
-    //access and referesh token
-    //send cookie
-
-    const {email, password} = req.body
+const loginUser = asyncHandler(async (req, res) => {
+    const { email, password } = req.body
 
     if (!email || !password) {
         throw new ApiError(400, "Email and password are required")
     }
-    
-    // Here is an alternative of above code based on logic discussed in video:
-    // if (!(username || email)) {
-    //     throw new ApiError(400, "username or email is required")
-        
-    // }
 
-    const user = await User.findOne({ email }).select("+password")
+    const normalizedEmail = email.trim().toLowerCase()
+    const user = await User.findOne({ email: normalizedEmail }).select("+password")
 
     if (!user) {
         throw new ApiError(404, "User does not exist")
     }
 
-   const isPasswordValid = await user.ispasswordCorrect(password)
-
-   if (!isPasswordValid) {
-    throw new ApiError(401, "Invalid user credentials")
+    if (user.authProvider === "google") {
+        throw new ApiError(400, "This account uses Google sign-in. Please continue with Google.")
     }
 
-   
+    const isPasswordValid = await user.ispasswordCorrect(password)
 
-//    console.log(accessToken);
-//    console.log(refreshToken);
-   
-
-    const loggedInUser = await User.findById(user._id).select("-password")
-
-    // HttpOnly cookie keeps the token out of client-side JavaScript
-    const options = {
-        httpOnly: true,
-        secure: true
+    if (!isPasswordValid) {
+        throw new ApiError(401, "Invalid user credentials")
     }
 
-    const token = user.generateAuthToken();
-
-    return res
-    .status(200)
-    .cookie("authtoken", token, options)
-    .json(
-        new ApiResponse(
-            200, 
-            {
-                user: loggedInUser, token
-            },
-            "User logged In Successfully"
-        )
-    )
-
+    return sendAuthResponse(res, user, 200, "User logged In Successfully")
 })
 
+const googleAuth = asyncHandler(async (req, res) => {
+    const { credential } = req.body
 
-const getUserProfile = asyncHandler(async (req , res , next ) => {
-    return res
-    .status(200)
-    .json(
-        new ApiResponse(
-            200,
-            req.user,
-            "User profile"
-        )
-    )
+    if (!credential) {
+        throw new ApiError(400, "Google credential is required")
+    }
+
+    if (!process.env.GOOGLE_CLIENT_ID) {
+        throw new ApiError(500, "Google auth is not configured on the server")
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+        idToken: credential,
+        audience: process.env.GOOGLE_CLIENT_ID
+    })
+    const payload = ticket.getPayload()
+
+    const googleId = payload?.sub
+    const email = payload?.email?.trim().toLowerCase()
+    const fullname = payload?.name?.trim() || "Google User"
+    const avatar = payload?.picture || ""
+
+    if (!googleId || !email || payload?.email_verified !== true) {
+        throw new ApiError(400, "Unable to verify Google account")
+    }
+
+    let user = await User.findOne({
+        $or: [{ googleId }, { email }]
+    })
+    let statusCode = 200
+    let message = "Google sign-in successful"
+
+    if (!user) {
+        user = await User.create({
+            fullname,
+            email,
+            password: randomUUID(),
+            googleId,
+            authProvider: "google",
+            avatar
+        })
+        statusCode = 201
+        message = "Google account created successfully"
+    } else {
+        let shouldSave = false
+
+        if (!user.googleId) {
+            user.googleId = googleId
+            shouldSave = true
+        }
+
+        if (!user.avatar && avatar) {
+            user.avatar = avatar
+            shouldSave = true
+        }
+
+        if (!user.fullname && fullname) {
+            user.fullname = fullname
+            shouldSave = true
+        }
+
+        if (shouldSave) {
+            await user.save()
+        }
+    }
+
+    return sendAuthResponse(res, user, statusCode, message)
 })
 
+const getUserProfile = asyncHandler(async (req, res) => {
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                req.user,
+                "User profile"
+            )
+        )
+})
 
 const logoutUser = asyncHandler(async (req, res) => {
-    
     const token = req.cookies?.authtoken || req.header("Authorization")?.replace("Bearer ", "")
 
-    // Persist the token so it can't be reused
-    await blackListTokenModel.create({ token });
-
-
-    const options = {
-        httpOnly: true,
-        secure: true
-    }
+    await blackListTokenModel.create({ token })
 
     return res
         .status(200)
-        .clearCookie("authtoken", options)
+        .clearCookie("authtoken", getCookieOptions())
         .json(new ApiResponse(200, {}, "User logged Out"))
 })
-
-
-
-
 
 export {
     registerUser,
     loginUser,
+    googleAuth,
     logoutUser,
     getUserProfile,
 }
